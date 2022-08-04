@@ -1,0 +1,180 @@
+#!/usr/bin/expect
+
+source ./test.exp
+
+set passphrase "asdasd"
+set secret "foo\nbar"
+
+test_label "Should backup secret using Shamir Secret Sharing"
+
+spawn qr-backup.sh --shamir-secret-sharing
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d \(again\)} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter \(again\)} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Show passphrase \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Encrypting secret share 1 of 5…}
+}
+
+expect {
+  -re {SHA512 short hash: .+?([a-f0-9]{8})} {
+    set short_hash_1 $expect_out(1,string)
+  }
+}
+
+expect {
+  -re {Show SHA512 hash as QR code \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Encrypting secret share 2 of 5…}
+}
+
+expect {
+  -re {SHA512 short hash: .+?([a-f0-9]{8})} {
+    set short_hash_2 $expect_out(1,string)
+  }
+}
+
+expect {
+  -re {Show SHA512 hash as QR code \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Encrypting secret share 3 of 5…}
+}
+
+expect {
+  -re {SHA512 short hash: .+?([a-f0-9]{8})} {
+    set short_hash_3 $expect_out(1,string)
+  }
+}
+
+expect {
+  -re {Show SHA512 hash as QR code \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Encrypting secret share 4 of 5…}
+}
+
+expect {
+  -re {SHA512 short hash: .+?([a-f0-9]{8})} {
+    set short_hash_4 $expect_out(1,string)
+  }
+}
+
+expect {
+  -re {Show SHA512 hash as QR code \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Encrypting secret share 5 of 5…}
+}
+
+expect {
+  -re {SHA512 short hash: .+?([a-f0-9]{8})} {
+    set short_hash_5 $expect_out(1,string)
+  }
+}
+
+expect {
+  -re {Show SHA512 hash as QR code \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Done} {
+    test_ok
+  }
+  eof {
+    test_failed
+  }
+}
+
+test_label "Should restore secret using Shamir Secret Sharing"
+
+spawn qr-restore.sh --images "$short_hash_1.jpg,$short_hash_2.jpg,$short_hash_5.jpg" --shamir-secret-sharing
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Show secret \(y or n\)\?} {
+    test_send "y\r"
+  }
+}
+
+expect {
+  -re {Secret:\r\n((.|\r\n)+?)\r\nDone} {
+    set restored_secret $expect_out(1,string)
+  }
+}
+
+regsub -all {\033\[[0-9]*m(\017)?} $restored_secret {} restored_secret
+regsub -all {\r} $restored_secret {} restored_secret
+
+if { "$restored_secret" != "$secret" } {
+  test_failed
+} else {
+  test_ok
+}

@@ -1,0 +1,117 @@
+#!/usr/bin/expect
+
+source ./test.exp
+
+set valid_bip39_mnemonic "online pipe enough dutch decorate want moment scheme rigid enlist blast boat purse sick chalk shop brush all return betray jacket salon abandon retire"
+set invalid_bip39_mnemonic "online pipe enough dutch decorate want moment scheme rigid enlist blast boat purse sick chalk shop brush all return betray jacket salon abandon check"
+
+test_label "Should format flash drive and create BIP39 mnemonic"
+
+spawn qr-backup.sh --create-bip39-mnemonic
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "y\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {mkfs\.fat 4\.2 \(2021-01-31\)}
+}
+
+expect {
+  -re {Creating BIP39 mnemonic…}
+}
+
+expect {
+  -re {([a-z]+ ?){24}} {
+    test_ok true
+  }
+  eof {
+    test_failed
+  }
+}
+
+test_label "Should validate valid BIP39 mnemonic"
+
+spawn qr-backup.sh --validate-bip39-mnemonic
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d} {
+    test_send "$valid_bip39_mnemonic\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d \(again\)} {
+    test_send "$valid_bip39_mnemonic\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter} {
+    test_ok true
+  }
+  eof {
+    test_failed
+  }
+}
+
+test_label "Should fail to validate invalid BIP39 mnemonic"
+
+spawn qr-backup.sh --validate-bip39-mnemonic
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d} {
+    test_send "$invalid_bip39_mnemonic\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d \(again\)} {
+    test_send "$invalid_bip39_mnemonic\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Invalid BIP39 mnemonic} {
+    test_ok true
+  }
+  eof {
+    test_failed
+  }
+}

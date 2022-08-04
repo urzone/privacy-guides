@@ -1,0 +1,212 @@
+#!/usr/bin/expect
+
+source ./test.exp
+
+set secret "foo\nbar"
+set passphrase "asdasd"
+
+test_label "Should fails to back up secret using secrets that do not match"
+
+spawn qr-backup.sh
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d \(again\)} {
+    test_send "foo\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Secrets do not match} {
+    test_ok
+  }
+  eof {
+    test_failed
+  }
+}
+
+test_label "Should fails to back up secret using passphrases that do not match"
+
+spawn qr-backup.sh
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d \(again\)} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter \(again\)} {
+    test_send "foo\r"
+  }
+}
+
+expect {
+  -re {Passphrases do not match} {
+    test_ok
+  }
+  eof {
+    test_failed
+  }
+}
+
+test_label "Should back up secret showing passphrase"
+
+spawn qr-backup.sh
+
+expect {
+  -re {Format USB flash drive \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type secret and press enter, then ctrl\+d \(again\)} {
+    test_send "$secret\r"
+    test_send "\x04"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter \(again\)} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Show passphrase \(y or n\)\?} {
+    test_send "y\r"
+  }
+}
+
+expect {
+  $passphrase
+}
+
+expect {
+  -re {Press enter to continue} {
+    test_send "\r"
+  }
+}
+
+expect {
+  -re {SHA512 short hash: .+?([a-f0-9]{8})} {
+    set short_hash $expect_out(1,string)
+  }
+}
+
+expect {
+  -re {Show SHA512 hash as QR code \(y or n\)\?} {
+    test_send "n\r"
+  }
+}
+
+expect {
+  -re {Done} {
+    test_ok
+  }
+  eof {
+    test_failed
+  }
+}
+
+test_label "Should restore secret"
+
+spawn qr-restore.sh --images $short_hash.jpg
+
+expect {
+  -re {\[sudo\] password for pi:} {
+    test_send "$env(password)\r"
+  }
+}
+
+expect {
+  -re {Please type passphrase and press enter} {
+    test_send "$passphrase\r"
+  }
+}
+
+expect {
+  -re {Show secret \(y or n\)\?} {
+    test_send "y\r"
+  }
+}
+
+expect {
+  -re {Secret:\r\n((.|\r\n)+?)\r\nDone} {
+    set restored_secret $expect_out(1,string)
+  }
+}
+
+regsub -all {\033\[[0-9]*m(\017)?} $restored_secret {} restored_secret
+regsub -all {\r} $restored_secret {} restored_secret
+
+if { "$restored_secret" != "$secret" } {
+  test_failed
+} else {
+  test_ok
+}
